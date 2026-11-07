@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# ai-usage: uso de IA leído de los logs locales, para el fastfetch de pokefetch. Sin red y sin dependencias más allá de jq.
+#   ai-usage claude    tokens de Claude Code hoy / este mes (+ costo de hoy si está ccusage instalado)
+#   ai-usage codex     sesiones y tokens de Codex hoy
+#   ai-usage --refresh recalcula el cache ya (normalmente se refresca solo en segundo plano cada 5 min)
+# Los números salen del cache para que abrir la terminal no espere: si está viejo, devuelve el último y recalcula atrás.
+set -uo pipefail
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/pokefetch"
+TTL=300
+mkdir -p "$CACHE"
+
+human() {
+  awk -v n="${1:-0}" 'BEGIN {
+    if (n >= 1e9) printf "%.1fB", n / 1e9; else if (n >= 1e6) printf "%.1fM", n / 1e6;
+    else if (n >= 1e3) printf "%.1fk", n / 1e3; else printf "%d", n }'
+}
+
+# Claude Code: ~/.claude/projects/*/*.jsonl. Cada respuesta puede repetirse (streaming): se cuenta una vez por message.id+requestId.
+claude_line() {
+  local today month t n m cost=""
+  today=$(date +%Y-%m-%d)
+  month=$(date +%Y-%m)
+  read -r t n m < <(
+    find "$HOME/.claude/projects" -name '*.jsonl' -mtime -32 -print0 2>/dev/null \
+      | xargs -0 -r cat 2>/dev/null \
+      | jq -R -r 'fromjson? | select(.message.usage? and (.timestamp | type == "string"))
+          | [(.message.id // ""), (.requestId // ""),
+             (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 | localtime | strftime("%Y-%m-%d")),
+             (.message.usage | (.input_tokens // 0) + (.output_tokens // 0)
+               + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0))] | @tsv' 2>/dev/null \
+      | awk -F'\t' -v d="$today" -v mo="$month" '
+          !seen[$1 FS $2]++ && index($3, mo) == 1 { m += $4; if ($3 == d) { t += $4; n++ } }
+          END { printf "%d %d %d\n", t, n, m }'
+  )
+  # Costo en USD: solo si ccusage (https://github.com/ryoppippi/ccusage, open source) está instalado
+  if command -v ccusage >/dev/null 2>&1; then
+    cost=$(ccusage daily --json --offline --since "$(date +%Y%m%d)" 2>/dev/null | jq -r '.totals.totalCost // empty' 2>/dev/null)
+    [[ -n "$cost" ]] && cost=$(printf ' · $%.2f hoy' "$cost")
+  fi
+  if ((${t:-0} == 0)); then
+    printf 'sin uso hoy · %s tok este mes%s\n' "$(human "${m:-0}")" "$cost"
+  else
+    printf '%s tok hoy (%d resp) · %s este mes%s\n' "$(human "$t")" "$n" "$(human "$m")" "$cost"
+  fi
+}
+
+# Codex: ~/.codex/sessions/AAAA/MM/DD/*.jsonl; el último token_count de cada sesión es su total.
+codex_line() {
+  local dir="$HOME/.codex/sessions/$(date +%Y/%m/%d)" f s=0 tok=0 last
+  if [[ -d "$dir" ]]; then
+    for f in "$dir"/*.jsonl; do
+      [[ -f "$f" ]] || continue
+      s=$((s + 1))
+      last=$(jq -R -r 'fromjson? | select(.payload.type? == "token_count") | .payload.info.total_token_usage.total_tokens // empty' "$f" 2>/dev/null | tail -1)
+      tok=$((tok + ${last:-0}))
+    done
+  fi
+  if ((s == 0)); then echo "sin uso hoy"; else printf '%d sesiones hoy · %s tok\n' "$s" "$(human "$tok")"; fi
+}
+
+refresh() {
+  exec 9>"$CACHE/.lock"
+  flock -n 9 || return 0   # ya hay otro refresco corriendo
+  claude_line >"$CACHE/claude.tmp" && mv "$CACHE/claude.tmp" "$CACHE/claude"
+  codex_line >"$CACHE/codex.tmp" && mv "$CACHE/codex.tmp" "$CACHE/codex"
+}
+
+show() {
+  local f="$CACHE/$1"
+  if [[ ! -f "$f" ]] || (($(date +%s) - $(stat -c %Y "$f") > TTL)); then
+    (setsid "$0" --refresh >/dev/null 2>&1 &)
+  fi
+  if [[ -f "$f" ]]; then cat "$f"; else echo "calculando…"; fi
+}
+
+case "${1:-}" in
+  claude | codex) show "$1" ;;
+  --refresh) refresh ;;
+  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac

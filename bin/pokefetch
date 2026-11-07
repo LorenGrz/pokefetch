@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# pokefetch: pokémon al azar a la izquierda y fastfetch a la derecha (lo llaman .zshrc/.bashrc al abrir la terminal).
+# El pokémon nunca es más alto que fastfetch (INFO_H): grande si cabe, si no chico; si la terminal no da, nada.
+# Arte: https://gitlab.com/phoneybadger/pokemon-colorscripts (solo texto ANSI), clonado por packages.sh en $ART.
+#   pokefetch [nombre]   un pokémon puntual (ej: pokefetch pikachu); sin nombre, uno al azar (1/32 shiny)
+set -uo pipefail
+
+ART="${POKEFETCH_ART:-$HOME/.local/share/pokemon-colorscripts}/colorscripts"
+INFO_W=60   # columnas que necesita la columna de fastfetch (clave + valor)
+INFO_H=12   # filas de fastfetch: el pokémon no puede ser más alto que esto
+
+command -v fastfetch >/dev/null 2>&1 || exit 0
+
+cols=$(tput cols 2>/dev/null || echo 80)
+lines=$(tput lines 2>/dev/null || echo 24)
+
+# Ancho (sin códigos de color) y alto de un archivo de arte.
+art_size() { sed 's/\x1b\[[0-9;]*m//g' "$1" | awk '{ if (length > w) w = length } END { print w + 0, NR }'; }
+
+logo=""
+if [[ -d "$ART/small/regular" ]]; then
+  kind=regular
+  ((RANDOM % 32 == 0)) && kind=shiny
+  if [[ -n "${1:-}" ]]; then
+    name=$1
+  else
+    # Solo pokémon cuyo arte chico no supere la altura de fastfetch (wc -l: los códigos ANSI no suman líneas)
+    mapfile -t files < <(cd "$ART/small/$kind" && wc -l * | awk -v m="$INFO_H" '$2 != "total" && $1 <= m { print $2 }')
+    ((${#files[@]})) || files=("$ART/small/regular"/*)
+    name=$(basename "${files[RANDOM % ${#files[@]}]}")
+  fi
+  for size in large small; do
+    f="$ART/$size/$kind/$name"
+    [[ -f "$f" ]] || continue
+    read -r w h < <(art_size "$f")
+    if ((w + INFO_W + 4 <= cols && h <= INFO_H)); then
+      logo=$f
+      break
+    fi
+  done
+  # Nombre lindo para el módulo de fastfetch: "charizard-mega-x" -> "Charizard Mega X" (+ ✨ si es shiny)
+  pretty=$(sed -E 's/-/ /g; s/\b(.)/\u\1/g' <<<"$name")
+  [[ $kind == shiny ]] && pretty="$pretty ✨"
+  export POKEFETCH_NAME="$pretty"
+fi
+
+# Terminal muy chica (no entra ni el pokémon chico + info): no mostrar nada.
+if [[ -n "$logo" ]]; then
+  exec fastfetch --logo "$logo" --logo-type file-raw --logo-padding-top 1 --logo-padding-right 3
+elif [[ ! -d "$ART/small/regular" ]] && ((cols >= INFO_W && lines > INFO_H / 2)); then
+  exec fastfetch --logo none   # sin arte instalado: solo fastfetch, si entra
+fi
+exit 0

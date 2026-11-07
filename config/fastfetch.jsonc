@@ -1,0 +1,75 @@
+// fastfetch de pokefetch: la columna de la derecha (el pokémon lo pone pokefetch con --logo).
+// Íconos de Nerd Font (Omarchy ya trae una). Uso de IA: ~/.local/bin/ai-usage, cacheado.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "none"
+  },
+  "display": {
+    "separator": "  ",
+    "color": {
+      "keys": "magenta",
+      "title": "cyan"
+    },
+    "key": {
+      "width": 13
+    },
+    "size": {
+      "binaryPrefix": "si"
+    }
+  },
+  "modules": [
+    {
+      "type": "command",
+      "key": "󰐝 Pokémon",
+      "keyColor": "yellow",
+      "text": "printf '%s' \"${POKEFETCH_NAME:--}\""
+    },
+    {
+      "type": "os",
+      "key": " OS",
+      "format": "{pretty-name} {arch}"
+    },
+    {
+      "type": "kernel",
+      "key": " Kernel"
+    },
+    {
+      "type": "uptime",
+      "key": "󰅐 Uptime"
+    },
+    {
+      "type": "shell",
+      "key": " Shell"
+    },
+    {
+      "type": "terminal",
+      "key": " Terminal"
+    },
+    {
+      "type": "wm",
+      "key": " WM"
+    },
+    {
+      "type": "command",
+      "key": "󰏘 Tema",
+      "text": "omarchy-theme-current 2>/dev/null || cat ~/.local/state/omarchy/current/theme.name 2>/dev/null"
+    },
+    {
+      "type": "cpu",
+      "key": " CPU",
+      "temp": true
+    },
+    {
+      "type": "command",
+      "key": "󰚩 Claude",
+      "keyColor": "yellow",
+      "text": "ai-usage claude"
+    },
+    "break",
+    {
+      "type": "colors",
+      "symbol": "circle"
+    }
+  ]
+}
