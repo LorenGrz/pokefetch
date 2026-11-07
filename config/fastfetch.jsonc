@@ -20,12 +20,6 @@
   },
   "modules": [
     {
-      "type": "command",
-      "key": "󰐝 Pokémon",
-      "keyColor": "yellow",
-      "text": "printf '%s' \"${POKEFETCH_NAME:--}\""
-    },
-    {
       "type": "os",
       "key": " OS",
       "format": "{pretty-name} {arch}"
@@ -59,6 +53,12 @@
       "type": "cpu",
       "key": " CPU",
       "temp": true
+    },
+    {
+      "type": "command",
+      "key": "󰐝 Pokémon",
+      "keyColor": "yellow",
+      "text": "printf '%s' \"${POKEFETCH_NAME:--}\""
     },
     {
       "type": "command",

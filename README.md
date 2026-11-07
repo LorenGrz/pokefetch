@@ -3,7 +3,7 @@
 Un Pokémon al azar (en pixel art ANSI) a la izquierda y [fastfetch](https://github.com/fastfetch-cli/fastfetch) a la derecha, cada vez que abrís una terminal.
 
 ```
-Pokémon · OS · Kernel · Uptime · Shell · Terminal · WM · Tema · CPU · Claude
+OS · Kernel · Uptime · Shell · Terminal · WM · Tema · CPU · Pokémon · Claude
 ● ● ● ● ● ● ● ●
 ```
 
